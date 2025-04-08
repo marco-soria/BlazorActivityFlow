@@ -53,6 +53,8 @@ public class DataInitializer
         var userRoles = new[] { "Admin", "Manager", "User", "User", "User", "User", "User", "User", "User", "User" };
         var passwords = new[] { "User123!", "User123!", "User123!", "User123!", "User123!", "User123!", "User123!", "User123!", "User123!", "User123!" };
 
+        var createdUsers = new List<IdentityUser>();
+
         if (!await _userManager.Users.AnyAsync())
         {
             for (int i = 0; i < users.Length; i++)
@@ -60,8 +62,16 @@ public class DataInitializer
                 var user = users[i];
                 if (await _userManager.FindByEmailAsync(user.Email) == null)
                 {
-                    await _userManager.CreateAsync(user, passwords[i]);
-                    await _userManager.AddToRoleAsync(user, userRoles[i]);
+                    var result = await _userManager.CreateAsync(user, passwords[i]);
+                    if (result.Succeeded)
+                    {
+                        await _userManager.AddToRoleAsync(user, userRoles[i]);
+                        createdUsers.Add(user);
+                    }
+                }
+                else
+                {
+                    createdUsers.Add(await _userManager.FindByEmailAsync(user.Email));
                 }
             }
         }
@@ -99,7 +109,7 @@ public class DataInitializer
         if (!_context.Activities.Any())
         {
             var categories = await _context.Categories.ToListAsync();
-            if (categories.Count > 0)
+            if (categories.Count > 0 && createdUsers.Count > 0)
             {
                 var activities = new List<Activity>();
                 for (int i = 1; i <= 20; i++)
@@ -109,7 +119,7 @@ public class DataInitializer
                         Title = $"Activity {i}",
                         Description = $"Description for activity {i}",
                         StatusId = (i % 5) + 1,
-                        UserId = users[i % users.Length].Id,
+                        UserId = createdUsers[i % createdUsers.Count].Id,
                         CategoryId = categories[i % categories.Count].Id
                     });
                 }
