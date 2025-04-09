@@ -9,15 +9,18 @@ public class StatusValidator : AbstractValidator<Status>
     public StatusValidator()
     {
         RuleFor(x => x.Name)
-            .IsInEnum()
-            .WithMessage("El estado no es válido");
+            .NotEmpty()
+            .WithMessage("El nombre del estado es requerido");
 
         RuleFor(x => x.Description)
-            .MaximumLength(100)
-            .When(x => x.Description != null)
-            .WithMessage("La descripción no debe exceder 100 caracteres");
+            .MaximumLength(500)
+            .WithMessage("La descripción no puede exceder los 500 caracteres");
 
-        RuleFor(x => x.Order)
+        RuleFor(x => x.Color)
+            .MaximumLength(50)
+            .WithMessage("El color no puede exceder los 50 caracteres");
+
+        RuleFor<int>(x => x.DisplayOrder)
             .GreaterThanOrEqualTo(0)
             .WithMessage("El orden debe ser un número positivo");
     }

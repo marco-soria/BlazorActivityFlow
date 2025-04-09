@@ -1,3 +1,5 @@
+using ActivityFlow.Server.Data;
+using ActivityFlow.Server.Models;
 using ActivityFlow.Shared.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -6,92 +8,97 @@ namespace ActivityFlow.Server.Services;
 
 public class UserService : IUserService
 {
-    private readonly UserManager<IdentityUser> _userManager;
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ApplicationDbContext _context;
     private readonly ILogger<UserService> _logger;
 
-    public UserService(UserManager<IdentityUser> userManager, ILogger<UserService> logger)
+    public UserService(
+        UserManager<ApplicationUser> userManager,
+        ApplicationDbContext context,
+        ILogger<UserService> logger)
     {
         _userManager = userManager;
+        _context = context;
         _logger = logger;
     }
 
     public async Task<List<UserDto>> GetAllUsersAsync()
     {
-        try
-        {
-            var users = await _userManager.Users
-                .Select(u => new UserDto
-                {
-                    Id = u.Id,
-                    Email = u.Email ?? string.Empty,
-                    UserName = u.UserName ?? string.Empty,
-                    EmailConfirmed = u.EmailConfirmed,
-                    LockoutEnabled = u.LockoutEnabled,
-                    LockoutEnd = u.LockoutEnd
-                })
-                .ToListAsync();
-
-            foreach (var user in users)
+        var users = await _userManager.Users
+            .Select(u => new UserDto
             {
-                var identityUser = await _userManager.FindByIdAsync(user.Id);
-                if (identityUser != null)
-                {
-                    user.Roles = (await _userManager.GetRolesAsync(identityUser)).ToList();
-                }
-            }
+                Id = u.Id,
+                Email = u.Email ?? string.Empty,
+                UserName = u.UserName ?? string.Empty,
+                Roles = new List<string>(),
+                EmailConfirmed = u.EmailConfirmed,
+                LockoutEnabled = u.LockoutEnabled,
+                LockoutEnd = u.LockoutEnd
+            })
+            .ToListAsync();
 
-            return users;
-        }
-        catch (Exception ex)
+        foreach (var user in users)
         {
-            _logger.LogError(ex, "Error al obtener todos los usuarios");
-            throw;
+            var identityUser = await _userManager.FindByIdAsync(user.Id);
+            if (identityUser != null)
+            {
+                user.Roles = (await _userManager.GetRolesAsync(identityUser)).ToList();
+            }
         }
+
+        return users;
     }
 
     public async Task<UserDto?> GetUserByIdAsync(string userId)
     {
-        try
-        {
-            var user = await _userManager.FindByIdAsync(userId);
-            if (user == null) return null;
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return null;
 
-            var roles = await _userManager.GetRolesAsync(user);
+        var roles = await _userManager.GetRolesAsync(user);
 
-            return new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email ?? string.Empty,
-                UserName = user.UserName ?? string.Empty,
-                Roles = roles.ToList(),
-                EmailConfirmed = user.EmailConfirmed,
-                LockoutEnabled = user.LockoutEnabled,
-                LockoutEnd = user.LockoutEnd
-            };
-        }
-        catch (Exception ex)
+        return new UserDto
         {
-            _logger.LogError(ex, "Error al obtener usuario por ID: {UserId}", userId);
-            throw;
-        }
+            Id = user.Id,
+            Email = user.Email,
+            UserName = user.UserName,
+            Roles = roles.ToList(),
+            EmailConfirmed = user.EmailConfirmed,
+            LockoutEnabled = user.LockoutEnabled,
+            LockoutEnd = user.LockoutEnd
+        };
+    }
+
+    public async Task<UserDto?> GetUserByEmailAsync(string email)
+    {
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user == null) return null;
+
+        var roles = await _userManager.GetRolesAsync(user);
+
+        return new UserDto
+        {
+            Id = user.Id,
+            Email = user.Email,
+            UserName = user.UserName,
+            Roles = roles.ToList(),
+            EmailConfirmed = user.EmailConfirmed,
+            LockoutEnabled = user.LockoutEnabled,
+            LockoutEnd = user.LockoutEnd
+        };
     }
 
     public async Task<AuthResponse> UpdateUserAsync(UpdateUserRequest request)
     {
         try
         {
-            var user = await _userManager.FindByIdAsync(request.Id);
+            var user = await _userManager.FindByIdAsync(request.UserId);
             if (user == null)
             {
-                return new AuthResponse
-                {
-                    Success = false,
-                    Message = "Usuario no encontrado"
-                };
+                return new AuthResponse { Success = false, Message = "Usuario no encontrado" };
             }
 
             user.Email = request.Email;
-            user.UserName = request.UserName;
+            user.UserName = request.Email;
 
             var result = await _userManager.UpdateAsync(user);
             if (!result.Succeeded)
@@ -106,18 +113,134 @@ public class UserService : IUserService
             // Actualizar roles
             var currentRoles = await _userManager.GetRolesAsync(user);
             await _userManager.RemoveFromRolesAsync(user, currentRoles);
-            await _userManager.AddToRolesAsync(user, request.Roles);
-
-            return new AuthResponse
+            if (request.Roles.Any())
             {
-                Success = true,
-                Message = "Usuario actualizado correctamente"
-            };
+                await _userManager.AddToRolesAsync(user, request.Roles);
+            }
+
+            return new AuthResponse { Success = true, Message = "Usuario actualizado exitosamente" };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al actualizar usuario: {UserId}", request.Id);
-            throw;
+            _logger.LogError(ex, "Error al actualizar usuario");
+            return new AuthResponse { Success = false, Message = "Error al actualizar usuario" };
+        }
+    }
+
+    public async Task<AuthResponse> ChangePasswordAsync(ChangePasswordRequest request)
+    {
+        try
+        {
+            var user = await _userManager.FindByIdAsync(request.UserId);
+            if (user == null)
+            {
+                return new AuthResponse { Success = false, Message = "Usuario no encontrado" };
+            }
+
+            var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+            if (!result.Succeeded)
+            {
+                return new AuthResponse
+                {
+                    Success = false,
+                    Message = string.Join(", ", result.Errors.Select(e => e.Description))
+                };
+            }
+
+            return new AuthResponse { Success = true, Message = "Contraseña cambiada exitosamente" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al cambiar contraseña");
+            return new AuthResponse { Success = false, Message = "Error al cambiar contraseña" };
+        }
+    }
+
+    public async Task<AuthResponse> ResetPasswordAsync(ResetPasswordRequest request)
+    {
+        try
+        {
+            var user = await _userManager.FindByEmailAsync(request.Email);
+            if (user == null)
+            {
+                return new AuthResponse { Success = false, Message = "Usuario no encontrado" };
+            }
+
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var result = await _userManager.ResetPasswordAsync(user, token, request.NewPassword);
+            if (!result.Succeeded)
+            {
+                return new AuthResponse
+                {
+                    Success = false,
+                    Message = string.Join(", ", result.Errors.Select(e => e.Description))
+                };
+            }
+
+            return new AuthResponse { Success = true, Message = "Contraseña restablecida exitosamente" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al restablecer contraseña");
+            return new AuthResponse { Success = false, Message = "Error al restablecer contraseña" };
+        }
+    }
+
+    public async Task<AuthResponse> LockUserAsync(string userId, DateTimeOffset? lockoutEnd)
+    {
+        try
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return new AuthResponse { Success = false, Message = "Usuario no encontrado" };
+            }
+
+            var result = await _userManager.SetLockoutEndDateAsync(user, lockoutEnd);
+            if (!result.Succeeded)
+            {
+                return new AuthResponse
+                {
+                    Success = false,
+                    Message = string.Join(", ", result.Errors.Select(e => e.Description))
+                };
+            }
+
+            return new AuthResponse { Success = true, Message = "Usuario bloqueado exitosamente" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al bloquear usuario");
+            return new AuthResponse { Success = false, Message = "Error al bloquear usuario" };
+        }
+    }
+
+    public async Task<AuthResponse> UnlockUserAsync(string userId)
+    {
+        try
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return new AuthResponse { Success = false, Message = "Usuario no encontrado" };
+            }
+
+            var result = await _userManager.SetLockoutEndDateAsync(user, null);
+            if (!result.Succeeded)
+            {
+                return new AuthResponse
+                {
+                    Success = false,
+                    Message = string.Join(", ", result.Errors.Select(e => e.Description))
+                };
+            }
+
+            return new AuthResponse { Success = true, Message = "Usuario desbloqueado exitosamente" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al desbloquear usuario");
+            return new AuthResponse { Success = false, Message = "Error al desbloquear usuario" };
         }
     }
 
@@ -128,33 +251,24 @@ public class UserService : IUserService
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
-                return new AuthResponse
-                {
-                    Success = false,
-                    Message = "Usuario no encontrado"
-                };
+                _logger.LogWarning("Usuario no encontrado: {UserId}", userId);
+                return new AuthResponse { Success = false, Message = "Usuario no encontrado" };
             }
 
             var result = await _userManager.DeleteAsync(user);
             if (!result.Succeeded)
             {
-                return new AuthResponse
-                {
-                    Success = false,
-                    Message = string.Join(", ", result.Errors.Select(e => e.Description))
-                };
+                _logger.LogWarning("Error al eliminar usuario: {Errors}", string.Join(", ", result.Errors.Select(e => e.Description)));
+                return new AuthResponse { Success = false, Message = "Error al eliminar usuario" };
             }
 
-            return new AuthResponse
-            {
-                Success = true,
-                Message = "Usuario eliminado correctamente"
-            };
+            _logger.LogInformation("Usuario eliminado exitosamente: {UserId}", userId);
+            return new AuthResponse { Success = true, Message = "Usuario eliminado exitosamente" };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al eliminar usuario: {UserId}", userId);
-            throw;
+            _logger.LogError(ex, "Error al eliminar usuario");
+            return new AuthResponse { Success = false, Message = "Error al eliminar usuario" };
         }
     }
 
@@ -162,23 +276,17 @@ public class UserService : IUserService
     {
         try
         {
-            // Verificar si el usuario ya existe
             var existingUser = await _userManager.FindByEmailAsync(request.Email);
             if (existingUser != null)
             {
-                return new AuthResponse
-                {
-                    Success = false,
-                    Message = "El email ya está registrado"
-                };
+                return new AuthResponse { Success = false, Message = "El email ya está registrado" };
             }
 
-            // Crear el usuario
-            var user = new IdentityUser
+            var user = new ApplicationUser
             {
-                UserName = request.UserName,
+                UserName = request.Email,
                 Email = request.Email,
-                EmailConfirmed = true // Para pruebas, en producción debería ser false
+                EmailConfirmed = true
             };
 
             var result = await _userManager.CreateAsync(user, request.Password);
@@ -191,13 +299,11 @@ public class UserService : IUserService
                 };
             }
 
-            // Asignar roles
             if (request.Roles.Any())
             {
                 result = await _userManager.AddToRolesAsync(user, request.Roles);
                 if (!result.Succeeded)
                 {
-                    // Si falla la asignación de roles, eliminamos el usuario
                     await _userManager.DeleteAsync(user);
                     return new AuthResponse
                     {
@@ -207,16 +313,12 @@ public class UserService : IUserService
                 }
             }
 
-            return new AuthResponse
-            {
-                Success = true,
-                Message = "Usuario creado correctamente"
-            };
+            return new AuthResponse { Success = true, Message = "Usuario creado exitosamente" };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al crear usuario: {Email}", request.Email);
-            throw;
+            _logger.LogError(ex, "Error al crear usuario");
+            return new AuthResponse { Success = false, Message = "Error al crear usuario" };
         }
     }
 } 

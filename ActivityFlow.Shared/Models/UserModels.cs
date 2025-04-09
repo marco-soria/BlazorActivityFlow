@@ -13,12 +13,9 @@ public class UserDto
 
 public class UpdateUserRequest
 {
-    public string Id { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
-    public string UserName { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = new();
-    public bool LockoutEnabled { get; set; }
-    public DateTimeOffset? LockoutEnd { get; set; }
 }
 
 public class ChangePasswordRequest
@@ -31,7 +28,7 @@ public class ChangePasswordRequest
 
 public class ResetPasswordRequest
 {
-    public string UserId { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
     public string NewPassword { get; set; } = string.Empty;
     public string ConfirmPassword { get; set; } = string.Empty;
 } 

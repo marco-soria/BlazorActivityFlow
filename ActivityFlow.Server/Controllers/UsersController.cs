@@ -72,12 +72,13 @@ public class UsersController : ControllerBase
         }
     }
 
-    [HttpPut]
+    [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<AuthResponse>> UpdateUser([FromBody] UpdateUserRequest request)
+    public async Task<ActionResult<AuthResponse>> UpdateUser(string id, UpdateUserRequest request)
     {
         try
         {
+            request.UserId = id;
             var result = await _userService.UpdateUserAsync(request);
             if (!result.Success)
             {
@@ -87,8 +88,8 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al actualizar usuario: {UserId}", request.Id);
-            return StatusCode(500, "Error interno del servidor");
+            _logger.LogError(ex, "Error al actualizar usuario");
+            return StatusCode(500, "Error interno del servidor al actualizar usuario");
         }
     }
 
