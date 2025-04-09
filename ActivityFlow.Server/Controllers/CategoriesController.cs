@@ -1,26 +1,28 @@
+using ActivityFlow.Server.Services;
+using ActivityFlow.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ActivityFlow.Server.Services;
-using ActivityFlow.Server.Models;
 
 namespace ActivityFlow.Server.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
-//[Authorize]
 public class CategoriesController : ControllerBase
 {
     private readonly ICategoryService _categoryService;
     private readonly ILogger<CategoriesController> _logger;
 
-    public CategoriesController(ICategoryService categoryService, ILogger<CategoriesController> logger)
+    public CategoriesController(
+        ICategoryService categoryService,
+        ILogger<CategoriesController> logger)
     {
         _categoryService = categoryService;
         _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<Category>>> GetAllCategories()
+    public async Task<ActionResult<List<CategoryDto>>> GetAllCategories()
     {
         try
         {
@@ -35,62 +37,59 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<Category>> GetCategoryById(int id)
+    public async Task<ActionResult<CategoryDto>> GetCategoryById(int id)
     {
         try
         {
             var category = await _categoryService.GetCategoryByIdAsync(id);
-            if (category is null)
+            if (category == null)
             {
-                return NotFound("Categoría no encontrada");
+                return NotFound();
             }
             return Ok(category);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener categoría por ID: {CategoryId}", id);
+            _logger.LogError(ex, "Error al obtener la categoría con ID {Id}", id);
             return StatusCode(500, "Error interno del servidor");
         }
     }
 
     [HttpPost]
-    //[Authorize(Roles = "Admin")]
-    public async Task<ActionResult<Category>> CreateCategory([FromBody] CreateCategoryDto categoryDto)
+    public async Task<ActionResult<CategoryDto>> CreateCategory(CreateCategoryDto categoryDto)
     {
         try
         {
-            var createdCategory = await _categoryService.CreateCategoryAsync(categoryDto);
-            return CreatedAtAction(nameof(GetCategoryById), new { id = createdCategory.Id }, createdCategory);
+            var category = await _categoryService.CreateCategoryAsync(categoryDto);
+            return CreatedAtAction(nameof(GetCategoryById), new { id = category.Id }, category);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al crear categoría: {CategoryName}", categoryDto.Name);
+            _logger.LogError(ex, "Error al crear la categoría");
             return StatusCode(500, "Error interno del servidor");
         }
     }
 
     [HttpPut("{id}")]
-    //[Authorize(Roles = "Admin")]
-    public async Task<ActionResult<Category>> UpdateCategory(int id, [FromBody] UpdateCategoryDto categoryDto)
+    public async Task<ActionResult<CategoryDto>> UpdateCategory(int id, UpdateCategoryDto categoryDto)
     {
         try
         {
-            var updatedCategory = await _categoryService.UpdateCategoryAsync(id, categoryDto);
-            return Ok(updatedCategory);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound("Categoría no encontrada");
+            var category = await _categoryService.UpdateCategoryAsync(id, categoryDto);
+            if (category == null)
+            {
+                return NotFound();
+            }
+            return Ok(category);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al actualizar categoría: {CategoryId}", id);
+            _logger.LogError(ex, "Error al actualizar la categoría con ID {Id}", id);
             return StatusCode(500, "Error interno del servidor");
         }
     }
 
     [HttpDelete("{id}")]
-    //[Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteCategory(int id)
     {
         try
@@ -98,13 +97,13 @@ public class CategoriesController : ControllerBase
             var result = await _categoryService.DeleteCategoryAsync(id);
             if (!result)
             {
-                return NotFound("Categoría no encontrada");
+                return NotFound();
             }
             return NoContent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al eliminar categoría: {CategoryId}", id);
+            _logger.LogError(ex, "Error al eliminar la categoría con ID {Id}", id);
             return StatusCode(500, "Error interno del servidor");
         }
     }

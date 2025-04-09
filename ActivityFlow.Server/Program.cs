@@ -120,7 +120,7 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 
-    c.CustomSchemaIds(type => type.FullName);
+    c.CustomSchemaIds(type => type.FullName?.Replace("+", "."));
 });
 
 // Configuración de CORS

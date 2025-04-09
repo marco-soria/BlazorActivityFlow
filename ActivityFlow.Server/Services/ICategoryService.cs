@@ -1,12 +1,12 @@
-using ActivityFlow.Server.Models;
+using ActivityFlow.Shared.Models;
 
 namespace ActivityFlow.Server.Services;
 
 public interface ICategoryService
 {
-    Task<List<Category>> GetAllCategoriesAsync();
-    Task<Category?> GetCategoryByIdAsync(int id);
-    Task<Category> CreateCategoryAsync(CreateCategoryDto categoryDto);
-    Task<Category> UpdateCategoryAsync(int id, UpdateCategoryDto categoryDto);
+    Task<List<CategoryDto>> GetAllCategoriesAsync();
+    Task<CategoryDto?> GetCategoryByIdAsync(int id);
+    Task<CategoryDto> CreateCategoryAsync(CreateCategoryDto categoryDto);
+    Task<CategoryDto?> UpdateCategoryAsync(int id, UpdateCategoryDto categoryDto);
     Task<bool> DeleteCategoryAsync(int id);
 } 
