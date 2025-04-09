@@ -7,6 +7,8 @@ using System.Text;
 using ActivityFlow.Server.Services;
 using ActivityFlow.Server.Models;
 using System.Text.Json.Serialization;
+using ActivityFlow.Server.Validators;
+using FluentValidation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -117,6 +119,8 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
+
+    c.CustomSchemaIds(type => type.FullName);
 });
 
 // Configuración de CORS

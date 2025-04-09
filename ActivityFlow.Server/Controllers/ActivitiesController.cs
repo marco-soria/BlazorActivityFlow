@@ -1,37 +1,32 @@
 using ActivityFlow.Server.Models;
 using ActivityFlow.Server.Services;
 using ActivityFlow.Shared.Models;
-using ActivityFlow.Server.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
-
-using ServerActivity = ActivityFlow.Server.Models.Activity;
-using SharedActivity = ActivityFlow.Shared.Models.Activity;
-using ServerCategory = ActivityFlow.Server.Models.Category;
-using SharedCategory = ActivityFlow.Shared.Models.Category;
 
 namespace ActivityFlow.Server.Controllers;
 
-//[Authorize]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class ActivitiesController : ControllerBase
 {
     private readonly IActivityService _activityService;
+    private readonly ICategoryService _categoryService;
     private readonly ILogger<ActivitiesController> _logger;
-    private readonly ApplicationDbContext _context;
 
-    public ActivitiesController(IActivityService activityService, ILogger<ActivitiesController> logger, ApplicationDbContext context)
+    public ActivitiesController(
+        IActivityService activityService,
+        ICategoryService categoryService,
+        ILogger<ActivitiesController> logger)
     {
         _activityService = activityService;
+        _categoryService = categoryService;
         _logger = logger;
-        _context = context;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<SharedActivity>>> GetAllActivities()
+    public async Task<ActionResult<List<ActivityFlow.Server.Models.Activity>>> GetAllActivities()
     {
         try
         {
@@ -46,14 +41,15 @@ public class ActivitiesController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<SharedActivity>> GetActivityById(int id)
+    public async Task<ActionResult<ActivityFlow.Server.Models.Activity>> GetActivityById(int id)
     {
         try
         {
             var activity = await _activityService.GetActivityByIdAsync(id);
             if (activity == null)
+            {
                 return NotFound();
-
+            }
             return Ok(activity);
         }
         catch (Exception ex)
@@ -64,7 +60,7 @@ public class ActivitiesController : ControllerBase
     }
 
     [HttpGet("user/{userId}")]
-    public async Task<ActionResult<List<SharedActivity>>> GetActivitiesByUserId(string userId)
+    public async Task<ActionResult<List<ActivityFlow.Server.Models.Activity>>> GetActivitiesByUserId(string userId)
     {
         try
         {
@@ -79,7 +75,7 @@ public class ActivitiesController : ControllerBase
     }
 
     [HttpGet("category/{categoryId}")]
-    public async Task<ActionResult<List<SharedActivity>>> GetActivitiesByCategoryId(int categoryId)
+    public async Task<ActionResult<List<ActivityFlow.Server.Models.Activity>>> GetActivitiesByCategoryId(int categoryId)
     {
         try
         {
@@ -93,15 +89,26 @@ public class ActivitiesController : ControllerBase
         }
     }
 
-    [HttpPost]
-    public async Task<ActionResult<SharedActivity>> CreateActivity(CreateActivityDto activityDto)
+    [HttpGet("categories")]
+    public async Task<ActionResult<List<ActivityFlow.Server.Models.Category>>> GetCategories()
     {
         try
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-                return Unauthorized();
+            var categories = await _categoryService.GetAllCategoriesAsync();
+            return Ok(categories);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener las categorías");
+            return StatusCode(500, "Error interno del servidor");
+        }
+    }
 
+    [HttpPost]
+    public async Task<ActionResult<ActivityFlow.Server.Models.Activity>> CreateActivity(CreateActivityDto activityDto)
+    {
+        try
+        {
             var activity = await _activityService.CreateActivityAsync(activityDto);
             return CreatedAtAction(nameof(GetActivityById), new { id = activity.Id }, activity);
         }
@@ -113,15 +120,16 @@ public class ActivitiesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateActivity(int id, UpdateActivityDto activityDto)
+    public async Task<ActionResult<ActivityFlow.Server.Models.Activity>> UpdateActivity(int id, UpdateActivityDto activityDto)
     {
         try
         {
             var activity = await _activityService.UpdateActivityAsync(id, activityDto);
-            if (activity == null)
-                return NotFound();
-
-            return NoContent();
+            return Ok(activity);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
         }
         catch (Exception ex)
         {
@@ -131,35 +139,21 @@ public class ActivitiesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteActivity(int id)
+    public async Task<ActionResult> DeleteActivity(int id)
     {
         try
         {
             var result = await _activityService.DeleteActivityAsync(id);
             if (!result)
+            {
                 return NotFound();
-
+            }
             return NoContent();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al eliminar la actividad con ID {Id}", id);
             return StatusCode(500, "Error interno del servidor");
-        }
-    }
-
-    [HttpGet("categories")]
-    public async Task<ActionResult<List<ServerCategory>>> GetCategories()
-    {
-        try
-        {
-            var categories = await _context.Categories.ToListAsync();
-            return Ok(categories);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al obtener las categorías");
-            return StatusCode(500, "Error interno del servidor al obtener las categorías");
         }
     }
 } 
